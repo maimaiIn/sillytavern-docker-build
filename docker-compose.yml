@@ -1,0 +1,20 @@
+services:
+  sillytavern:
+    build: .
+    container_name: st
+    labels:
+      createdBy: Local
+    networks:
+      - 1panel-network
+    ports:
+      - "8000:8000"
+    restart: always
+    volumes:
+      - st_data:/SillyTavern
+
+networks:
+  1panel-network:
+    external: true
+
+volumes:
+  st_data:
