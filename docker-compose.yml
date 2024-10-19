@@ -6,12 +6,12 @@ services:
   sillytavern:
     image: maifu/sillytavern
     container_name: sillytavern
-          
+
     labels:
-        createdBy: Apps
+      createdBy: Apps
 
     networks:
-        - 1panel-network
+      - 1panel-network
 
     ports:
       - "8000:8000"
@@ -19,6 +19,6 @@ services:
     restart: always
 
     volumes:
-          - "./config:/home/node/app/config"
-          - "./data:/home/node/app/data"
-          - "./plugins:/home/node/app/plugins"
+      - "./config:/home/node/app/config"
+      - "./data:/home/node/app/data"
+      - "./plugins:/home/node/app/plugins"
