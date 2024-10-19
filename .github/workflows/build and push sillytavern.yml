@@ -1,0 +1,52 @@
+name: Test Docker Images
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download latest release
+        run: |
+          chmod +x down_latest_release.sh
+          ./down_latest_release.sh
+      
+      - name: Untar file
+        run: |
+          tar -xvzf latest.tar.gz
+          mv $(tar -tzf latest.tar.gz | head -1 | cut -d/ -f1) st
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: see location
+        run: |
+          cd st
+          ls
+          
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v6
+        with:
+          context: st
+          file: st/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:${{ env.LATEST_VERSION }},${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:latest
+          
+      - name: Post-build cleanup
+        run: |
+          echo "Cleaning up temporary files..."
+          rm -rf latest.tar.gz
