@@ -40,12 +40,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # - name: see location
-      #   if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
-      #   run: |
-      #     cd st
-      #     ls
           
       - name: Build and push Docker images
         if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
@@ -56,8 +50,3 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:${{ env.LATEST_VERSION }},${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:latest
           
-      - name: Post-build cleanup
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
-        run: |
-          echo "Cleaning up temporary files..."
-          rm -rf latest.tar.gz
