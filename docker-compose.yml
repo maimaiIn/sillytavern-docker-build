@@ -1,23 +1,10 @@
-networks:
-  1panel-network:
-    external: true
-
 services:
   sillytavern:
-    image: maifu/sillytavern
+    image: maifu/sillytavern:latest
     container_name: sillytavern
-
-    labels:
-      createdBy: Apps
-
-    networks:
-      - 1panel-network
-
+    restart: always
     ports:
       - "8000:8000"
-
-    restart: always
-
     volumes:
       - "./config:/home/node/app/config"
       - "./data:/home/node/app/data"
