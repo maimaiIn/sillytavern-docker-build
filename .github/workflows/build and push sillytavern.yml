@@ -44,7 +44,7 @@ jobs:
           mkdir -p st
           tar -xzf latest.tar.gz --strip-components=1 -C st
       
-      - name: Set up Docker Buildx
+      - name: Set up QEMU
         if: env.UPDATE_NEEDED == 'true'
         uses: docker/setup-qemu-action@v3
         
@@ -59,21 +59,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           
-      - name: Build and push Docker images
+      - name: Build and push multi-architecture Docker images
         if: env.UPDATE_NEEDED == 'true'
         uses: docker/build-push-action@v6
         with:
           context: st
           file: st/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:${{ env.LATEST_VERSION }},${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:buildcache,mode=max
           
       - name: Update build status
         if: always()
         run: |
           if [ "${{ env.UPDATE_NEEDED }}" == "true" ]; then
             if [ "${{ job.status }}" == "success" ]; then
-              echo "✅ 成功构建并推送版本 ${{ env.LATEST_VERSION }}"
+              echo "✅ 成功构建并推送多架构版本 ${{ env.LATEST_VERSION }}"
+              echo "支持的架构: AMD64, ARM64, ARMv7"
             else
               echo "❌ 版本 ${{ env.LATEST_VERSION }} 构建失败"
             fi
