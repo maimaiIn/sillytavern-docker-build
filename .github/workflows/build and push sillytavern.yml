@@ -1,48 +1,66 @@
-name: build and push sillytavern
-
+name: Build and Push SillyTavern
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 1,15 * *'
+    - cron: '0 0 1,15 * *'  # 每月1号和15号运行
 
 jobs:
-  build:
+  check-and-build:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download latest release
-        run: |
-          chmod +x down_latest_release.sh
-          ./down_latest_release.sh
-          chmod +x get_latest_version.sh
-          ./get_latest_version.sh
       
-      - name: Untar file
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
+      - name: Check latest versions
+        id: check-versions
         run: |
-          tar -xvzf latest.tar.gz
-          mv $(tar -tzf latest.tar.gz | head -1 | cut -d/ -f1) st
-
-      - name: Set up QEMU
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
-        uses: docker/setup-qemu-action@v3
-
+          # 获取GitHub最新版本
+          GITHUB_API="https://api.github.com/repos/SillyTavern/SillyTavern/releases/latest"
+          LATEST_VERSION=$(curl -s $GITHUB_API | jq -r '.tag_name')
+          DOWNLOAD_URL=$(curl -s $GITHUB_API | jq -r '.tarball_url')
+          echo "LATEST_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
+          
+          # 获取DockerHub最新版本
+          DOCKER_API="https://registry.hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/sillytavern/tags/"
+          DOCKER_VERSION=$(curl -s "$DOCKER_API" | jq -r '.results | map(select(.name != "latest")) | max_by(.last_updated) | .name // "none"')
+          echo "DOCKER_VERSION=$DOCKER_VERSION" >> $GITHUB_ENV
+          
+          # 检查是否需要更新
+          if [ "$LATEST_VERSION" != "$DOCKER_VERSION" ]; then
+            echo "需要更新：GitHub版本 $LATEST_VERSION 与 Docker版本 $DOCKER_VERSION 不同"
+            echo "UPDATE_NEEDED=true" >> $GITHUB_ENV
+          else
+            echo "无需更新：GitHub版本 $LATEST_VERSION 与 Docker版本 $DOCKER_VERSION 相同"
+            echo "UPDATE_NEEDED=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Download and extract source
+        if: env.UPDATE_NEEDED == 'true'
+        run: |
+          echo "下载最新版本 ${{ env.LATEST_VERSION }} 中..."
+          curl -L -o latest.tar.gz "${{ env.DOWNLOAD_URL }}"
+          mkdir -p st
+          tar -xzf latest.tar.gz --strip-components=1 -C st
+      
       - name: Set up Docker Buildx
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
+        if: env.UPDATE_NEEDED == 'true'
+        uses: docker/setup-qemu-action@v3
+        
+      - name: Set up Docker Buildx
+        if: env.UPDATE_NEEDED == 'true'
         uses: docker/setup-buildx-action@v3
-
+      
       - name: Login to Docker Hub
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
+        if: env.UPDATE_NEEDED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           
       - name: Build and push Docker images
-        if: ${{ env.LATEST_VERSION != env.latest_version_docker }}
+        if: env.UPDATE_NEEDED == 'true'
         uses: docker/build-push-action@v6
         with:
           context: st
@@ -50,3 +68,15 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:${{ env.LATEST_VERSION }},${{ secrets.DOCKERHUB_USERNAME }}/sillytavern:latest
           
+      - name: Update build status
+        if: always()
+        run: |
+          if [ "${{ env.UPDATE_NEEDED }}" == "true" ]; then
+            if [ "${{ job.status }}" == "success" ]; then
+              echo "✅ 成功构建并推送版本 ${{ env.LATEST_VERSION }}"
+            else
+              echo "❌ 版本 ${{ env.LATEST_VERSION }} 构建失败"
+            fi
+          else
+            echo "ℹ️ 无需更新，当前Docker版本 ${{ env.DOCKER_VERSION }} 已是最新"
+          fi
